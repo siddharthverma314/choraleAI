@@ -75,7 +75,7 @@ def process_and_save_data():
         if na is None:
             continue
 
-        output.append(na.T)
+        output.append(torch.FloatTensor(na))
 
     torch.save(output, DATA_FILE)
 
@@ -94,6 +94,10 @@ class ChorData(Dataset):
 
     def __len__(self):
         return len(self.data)
+
+    @property
+    def input_size(self):
+        return MIDI_FILTER[1] - MIDI_FILTER[0]
 
 
 if __name__ == "__main__":
