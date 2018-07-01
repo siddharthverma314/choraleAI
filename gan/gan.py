@@ -57,12 +57,12 @@ class GAN():
 
 
 class Discriminiator(torch.nn.Module):
-    HIDDEN_SIZE = 128
+    HIDDEN_SIZE = 32
 
     def __init__(self, input_size):
         super(Discriminiator, self).__init__()
 
-        self.lstm = torch.nn.LSTM(input_size, self.HIDDEN_SIZE)
+        self.lstm = torch.nn.LSTM(input_size, self.HIDDEN_SIZE, num_layers=1)
         self.final = torch.nn.Linear(self.HIDDEN_SIZE, 2)
 
     def forward(self, feed):
@@ -88,13 +88,16 @@ class Discriminiator(torch.nn.Module):
 class Generator(torch.nn.Module):
     SEED_SIZE = 20
     OUTPUT_LENGTH = 160
+    LSTM_OUTPUT_SIZE = 32
 
     def __init__(self, output_size, batch_size):
         super(Generator, self).__init__()
 
-        self.lstm = torch.nn.LSTM(self.SEED_SIZE, output_size)
         self.batch_size = batch_size
         self.output_size = output_size
+
+        self.lstm = torch.nn.LSTM(self.SEED_SIZE, self.LSTM_OUTPUT_SIZE, num_layers=2)
+        self.final = torch.nn.Linear(self.LSTM_OUTPUT_SIZE, output_size)
 
     def forward(self):
         self._init_hidden_layer()
@@ -104,6 +107,8 @@ class Generator(torch.nn.Module):
         feed = feed.repeat(self.OUTPUT_LENGTH, 1, 1)
 
         output, self.hidden = self.lstm(feed, self.hidden)
+        output = self.final(output)
+        output = F.tanh(output)
 
         # format and return output
         output = output.transpose(0, 1)
@@ -111,18 +116,21 @@ class Generator(torch.nn.Module):
 
     def _init_hidden_layer(self):
         def gen():
-            return torch.randn(1, self.batch_size, self.output_size)
+            return torch.zeros(2, self.batch_size, self.LSTM_OUTPUT_SIZE)
         self.hidden = (gen(), gen())
 
 
 if __name__ == "__main__":
+    from torch.utils.data import DataLoader
     # hyperparameters
-    BATCH_SIZE = 5
-    STEPS = 50
+    BATCH_SIZE = 10
+    STEPS = 500
 
     # initialize data and loader
     data = data_loader.ChorData()
-    data_loader = torch.utils.data.DataLoader(data, batch_size=BATCH_SIZE)
+    data_loader = DataLoader(data,
+                             batch_size=BATCH_SIZE,
+                             sampler=data_loader.InfiniteSampler(data))
 
     # initialize models
     d = Discriminiator(data.input_size)

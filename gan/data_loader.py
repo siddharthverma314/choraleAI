@@ -1,6 +1,8 @@
-import subprocess as sp
+import random
 import torch
-from torch.utils.data import Dataset
+import subprocess as sp
+from torch.utils.data import Dataset, DataLoader
+from torch.utils.data.sampler import Sampler
 import numpy as np
 import os
 
@@ -100,5 +102,40 @@ class ChorData(Dataset):
         return MIDI_FILTER[1] - MIDI_FILTER[0]
 
 
+class InfiniteSampler(Sampler):
+
+    def __init__(self, data_source):
+        self.data = data_source
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return random.randint(0, len(self.data) - 1)
+
+    def __len__(self):
+        return np.iinfo(np.int64).max
+
+
 if __name__ == "__main__":
-    process_and_save_data()
+    import argparse
+
+    # build command line parser
+    parser = argparse.ArgumentParser(description="Create and test pytorch dataset.")
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--test', '-t', action='store_true', help="run tests")
+    group.add_argument('--create', '-c', action='store_true', help="create dataset")
+    args = parser.parse_args()
+
+    if args.create:
+        process_and_save_data()
+
+    elif args.test:
+        d = ChorData()
+        dl = DataLoader(d, batch_size=5, sampler=InfiniteSampler(d))
+        dl = iter(dl)
+
+        i = 0
+        while True:
+            print(f"pos: {i}, size: {next(dl).size()}")
+            i += 1
