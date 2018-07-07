@@ -18,13 +18,16 @@ DATA_DIR = '../data/chorales/kern/'
 
 
 # main function to call from this module
-def hum_encode_note_array(filepath):
+def hum_encode_note_array(filepath, truncate=True):
     text = __get_file(filepath)
 
-    if __size(text) > MIDI_LENGTH:
-        return
+    if truncate:
+        if __size(text) > MIDI_LENGTH:
+            return
 
-    array = np.zeros((MIDI_LENGTH, MIDI_FILTER[1] - MIDI_FILTER[0]))
+        array = np.zeros((MIDI_LENGTH, MIDI_FILTER[1] - MIDI_FILTER[0]))
+    else:
+        array = np.zeros((__size(text), MIDI_FILTER[1] - MIDI_FILTER[0]))
 
     for i, spine in enumerate(__get_spines(text)):
         __add_spine_to_array(spine, i, array)
@@ -68,12 +71,12 @@ def __add_spine_to_array(spine, pos, array):
         array[pos, num] = 1
 
 
-def process_and_save_data():
+def process_and_save_data(truncate=True):
     files = list(filter(lambda x: "krn" in x, os.listdir(DATA_DIR)))
     output = []
 
     for i, filepath in enumerate(files):
-        na = hum_encode_note_array(DATA_DIR + filepath)
+        na = hum_encode_note_array(DATA_DIR + filepath, truncate)
         if na is None:
             continue
 
@@ -86,16 +89,55 @@ def process_and_save_data():
 # DATASET CLASS #
 #################
 
-class ChorData(Dataset):
+class TruncatedChorData(Dataset):
 
-    def __init__(self):
+    def __init__(self, truncate=160):
+        self.truncate = truncate
         self.data = torch.load(DATA_FILE)
 
     def __getitem__(self, i):
-        return self.data[i]
+        data = self.data[i]
+        if len(data) > self.truncate:
+            return data[:self.truncate, :]
+        else:
+            zeros = torch.zeros(self.truncate - data.size(0), data.size(1))
+            return torch.cat((data, zeros))
 
     def __len__(self):
         return len(self.data)
+
+    @property
+    def input_size(self):
+        return MIDI_FILTER[1] - MIDI_FILTER[0]
+
+    @property
+    def width(self):
+        return self.truncate
+
+
+class InterlaceChorData(Dataset):
+
+    def __init__(self, truncate=50):
+        self.truncate = truncate
+        self.data = torch.load(DATA_FILE)
+        self._interlace()
+
+    def _interlace(self):
+        self.interlace = np.zeros(len(self.data), dtype=np.int32)
+        for i, d in enumerate(self.data):
+            self.interlace[i] = max((0, len(d) - self.truncate))
+        for i in range(1, len(self.interlace)):
+            self.interlace[i] += self.interlace[i-1]
+
+    def __getitem__(self, i):
+        sub = self.interlace - i
+        for i, val in enumerate(sub):
+            if val >= 0:
+                break
+        return self.data[i][val:val + self.truncate, :]
+
+    def __len__(self):
+        return self.interlace[-1]
 
     @property
     def input_size(self):
@@ -125,17 +167,23 @@ if __name__ == "__main__":
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('--test', '-t', action='store_true', help="run tests")
     group.add_argument('--create', '-c', action='store_true', help="create dataset")
+    parser.add_argument('--truncate', action='store_true', help="truncate dataset on creation")
     args = parser.parse_args()
 
     if args.create:
-        process_and_save_data()
+        process_and_save_data(args.truncate)
 
     elif args.test:
-        d = ChorData()
-        dl = DataLoader(d, batch_size=5, sampler=InfiniteSampler(d))
+        import matplotlib.pyplot as plt
+
+        d = InterlaceChorData()
+        dl = DataLoader(d, batch_size=1, sampler=InfiniteSampler(d))
         dl = iter(dl)
 
         i = 0
         while True:
-            print(f"pos: {i}, size: {next(dl).size()}")
+            p = next(dl)
+            print(f"pos: {i}, size: {p.size()}")
+            plt.matshow(p.squeeze())
+            plt.show()
             i += 1
