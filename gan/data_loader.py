@@ -110,10 +110,6 @@ class TruncatedChorData(Dataset):
     def input_size(self):
         return MIDI_FILTER[1] - MIDI_FILTER[0]
 
-    @property
-    def width(self):
-        return self.truncate
-
 
 class InterlaceChorData(Dataset):
 

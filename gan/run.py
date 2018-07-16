@@ -47,17 +47,17 @@ class Train:
         self.summ = Summary('./test/')
 
     def _init_data(self):
-        self.data = data_loader.InterlaceChorData()
+        self.data = data_loader.InterlaceChorData(10)
         self.dl = DataLoader(self.data,
                              batch_size=self.batch_size,
                              sampler=data_loader.InfiniteSampler(self.data))
 
     def _init_models(self):
         self.d = gan.Discriminiator(self.data.input_size)
-        self.g = gan.Generator(self.data.input_size, self.batch_size)
+        self.g = gan.Generator(self.data.input_size, self.data.truncate, self.batch_size)
         self.gan = gan.GAN(self.d, self.g)
 
-    def train(self, train_steps=100000, save_step=100):
+    def train(self, train_steps=10000, save_step=200):
         di = iter(self.dl)
         for i in range(train_steps):
             d_loss, g_loss = self.gan.train(next(di), self.batch_size)
@@ -81,5 +81,5 @@ class Train:
 
 
 if __name__ == "__main__":
-    t = Train(5)
-    t.train()
+    t = Train(10)
+    t.train(200001, 2000)
