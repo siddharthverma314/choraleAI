@@ -1,0 +1,17 @@
+* Steps to improve ML
+** Make it easier to debug model
+*** Custom saving code, custom graphing code
+*** Save gradients and track how they change over time
+*** Show weights, check for NaN
+*** New script maybe to track gradients
+** Change GAN structure
+*** Simple ANN Layer instead of LSTM
+*** Maybe try CNN as discriminator
+** Improvements from other papers
+*** Original GAN Paper
+https://arxiv.org/pdf/1406.2661.pdf
+*** TextRNN
+https://arxiv.org/pdf/1706.03850.pdf
+*** Pre-trained model into GAN
+*** Link for GAN resources
+https://github.com/nightrome/really-awesome-gan

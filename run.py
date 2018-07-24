@@ -9,6 +9,7 @@ class Summary:
     def __init__(self, filepath):
         self.scalars = {}
         self.filepath = filepath
+        self.count = 0
 
     def add_scalar(self, name, val):
         if name not in self.scalars:
@@ -16,8 +17,8 @@ class Summary:
         else:
             self.scalars[name].append(val.item())
 
-    def print_scalars(self, i):
-        out = f"step: {i}, "
+    def print_scalars(self):
+        out = f"step: {self.count}, "
         for name in self.scalars:
             out += name + ": " + str(self.scalars[name][-1])
             out += ", "
@@ -30,13 +31,17 @@ class Summary:
         plt.savefig(self.filepath + 'scalars.png')
         plt.close()
 
-    def save_model(self, model, name, i):
-        torch.save(model.state_dict(), f"{self.filepath}{name}_{i}.model")
+    def save_model(self, model, name):
+        torch.save(model.state_dict(), f"{self.filepath}{name}_{self.count}.model")
 
-    def save_img(self, tensor, name, i):
+    def save_img(self, tensor, name):
+        print(tensor.numpy())
         plt.matshow(tensor.numpy())
-        plt.savefig(f"{self.filepath}{name}_{i}.png")
+        plt.savefig(f"{self.filepath}{name}_{self.count}.png")
         plt.close()
+
+    def step(self):
+        self.count += 1
 
 
 class Train:
@@ -48,40 +53,45 @@ class Train:
         self.latent = None
 
     def _init_data(self):
-        self.data = data_loader.InterlaceChorData(30)
+        self.data = data_loader.InterlaceChorData(2)
         self.dl = DataLoader(self.data,
                              batch_size=self.batch_size,
                              sampler=data_loader.InfiniteSampler(self.data))
 
     def _init_models(self):
         self.d = gan.GRU_Disc(self.data.input_size)
-        self.g = gan.GRU_Gen(self.data.input_size, self.data.truncate, self.batch_size)
-        self.gan = gan.GAN(self.d, self.g)
+        self.g = gan.GRU_Gen(10, self.data.input_size)
+        d_train = torch.optim.Adam(self.d.parameters(), 0.01)
+        g_train = torch.optim.Adam(self.d.parameters(), 0.01)
+        self.gan = gan.GAN(self.d, self.g, d_train, g_train)
 
     def train(self, train_steps=10000, save_step=200):
-
+        const_latent = self.g.latent(1, 2)
         di = iter(self.dl)
+        d_loss, g_loss = torch.tensor(0), torch.tensor(0)
         for i in range(train_steps):
-            d_loss, g_loss = self.gan.train(next(di), self.batch_size)
+            data = next(di)
+            latent = self.g.latent(self.batch_size, 2)
+            d_loss, g_loss = self.gan.train(data, latent)
 
             self.summ.add_scalar('d_loss', d_loss)
             self.summ.add_scalar('g_loss', g_loss)
 
-            self.summ.print_scalars(i)
+            self.summ.print_scalars()
 
             if i % save_step == 0:
-                self.summ.save_model(self.d, "discriminator", i)
-                self.summ.save_model(self.g, "generator", i)
+                self.summ.save_model(self.d, "discriminator")
+                self.summ.save_model(self.g, "generator")
 
                 # save one image
                 with torch.no_grad():
-                    self.g.batch_size = 1
-                    self.summ.save_img(self.g.forward(self.g.latent()).squeeze(), "gen_notes", i)
-                    self.g.batch_size = self.batch_size
+                    self.summ.save_img(self.g.forward(const_latent).squeeze(), "gen_notes")
 
-        self.summ.save_scalars()
+                self.summ.save_scalars()
+
+            self.summ.step()
 
 
 if __name__ == "__main__":
     t = Train(10)
-    t.train(100001, 2000)
+    t.train(100001, 1000)

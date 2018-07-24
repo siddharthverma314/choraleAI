@@ -1,129 +1,133 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
 
 DATA_FILE = './data/gan_data'
 
 
-class GRU_Disc(nn.Module):
-    LSTM_INPUT_SIZE = 20
-    HIDDEN_SIZE = 10
-    LSTM_LAYERS = 1
+def make_gru_hidden(gru_layers, batch_size, hidden_size):
+    hidden = torch.rand(gru_layers, batch_size, hidden_size)
+    return hidden
 
-    def __init__(self, input_size):
+
+class GRU_Disc(nn.Module):
+
+    def __init__(self, input_size, hidden_size=10, gru_layers=1):
         super(GRU_Disc, self).__init__()
 
-        self.first = nn.Linear(input_size, self.LSTM_INPUT_SIZE)
-        self.lstm = nn.GRU(input_size=self.LSTM_INPUT_SIZE,
-                           hidden_size=self.HIDDEN_SIZE,
-                           num_layers=self.LSTM_LAYERS,
-                           batch_first=True)
-        self.final = nn.Linear(self.HIDDEN_SIZE, 1)
+        self.gru_layers = gru_layers
+        self.hidden_size = hidden_size
+
+        self.rnn = nn.GRU(input_size=input_size, hidden_size=hidden_size,
+                          num_layers=gru_layers, batch_first=True)
+        self.linear = nn.Linear(hidden_size, 1)
 
     def forward(self, feed):
-        self._init_hidden_layer(feed.size(0))
+        h = make_gru_hidden(self.gru_layers, feed.size(0), self.hidden_size)
+        out = feed
+        out, _ = self.rnn(out, h)
+        out = out.select(1, -1)
+        out = self.linear(out)
+        out = F.sigmoid(out)
+        return out
 
-        output = Variable(feed)
 
-        output = self.first(feed)
-        output = F.elu(output)
+class ANN_Disc(nn.Module):
 
-        output, _ = self.lstm(output, self.hidden)
+    def __init__(self, input_size, hidden_size=30):
+        super(ANN_Disc, self).__init__()
+        self.l1 = nn.Linear(input_size, hidden_size)
+        self.l1 = nn.Linear(hidden_size, 1)
 
-        output = output.select(1, -1)
-        output = self.final(output)
-        output = F.sigmoid(output)
+    def forward(self, feed):
+        out = feed
+        out = self.l1(out)
+        out = F.sigmoid(out)
+        out = self.l2(out)
+        out = F.sigmoid(out)
+        return out
 
-        return output
 
-    def _init_hidden_layer(self, batch_size=1):
-        def gen():
-            x = torch.rand(self.LSTM_LAYERS, batch_size, self.HIDDEN_SIZE)
-            return Variable(x)
-        self.hidden = gen()
+class ANN_Gen(nn.Module):
+
+    def __init__(self, input_size, output_size, hidden_size=50):
+        super(ANN_Gen, self).__init__()
+        self.l1 = nn.Linear(input_size, hidden_size)
+        self.l1 = nn.Linear(hidden_size, 1)
+
+    def forward(self, feed):
+        feed = feed.view(feed.size(0), feed.size(1)*feed.size(2))
+        out = feed
+        out = self.l1(out)
+        out = F.sigmoid(out)
+        out = self.l2(out)
+        out = F.sigmoid(out)
+        return out
 
 
 class GRU_Gen(nn.Module):
-    SEED_SIZE = 10
-    LSTM_OUTPUT_SIZE = 15
-    LSTM_LAYERS = 1
 
-    def __init__(self, output_size, output_length, batch_size):
+    def __init__(self, input_size, output_size, gru_layers=1):
         super(GRU_Gen, self).__init__()
 
-        self.batch_size = batch_size
+        self.input_size = input_size
         self.output_size = output_size
-        self.output_length = output_length
+        self.gru_layers = gru_layers
 
-        self.lstm = nn.GRU(input_size=self.SEED_SIZE,
-                           hidden_size=self.LSTM_OUTPUT_SIZE,
-                           num_layers=self.LSTM_LAYERS,
-                           batch_first=True)
-        self.final = nn.Linear(self.LSTM_OUTPUT_SIZE, output_size)
+        self.rnn = nn.GRU(input_size=input_size, hidden_size=output_size,
+                          num_layers=gru_layers, batch_first=True)
 
-    def latent(self):
-        return Variable(torch.randn(self.batch_size, 1, self.SEED_SIZE))
+    def latent(self, batch_size, output_length, fill_zeros=False):
+        feed = torch.randn(batch_size, 1, self.input_size)
+        if fill_zeros:
+            feed = F.pad(feed, (0, 0, 0, output_length - 1, 0, 0))
+        else:
+            feed = feed.repeat(1, output_length, 1)
+        return feed
 
     def forward(self, feed):
-        self._init_hidden_layer()
-
-        # feed = F.pad(feed, (0, 0, 0, 0, 0, self.output_length - 1))
-        feed = feed.repeat(1, self.output_length, 1)
-
-        output, _ = self.lstm(feed, self.hidden)
-        output = self.final(output)
-        output = F.sigmoid(output)
-
-        # format and return output
-        output = output.transpose(0, 1)
-        return output
-
-    def _init_hidden_layer(self):
-        def gen():
-            x = torch.rand(self.LSTM_LAYERS, self.batch_size, self.LSTM_OUTPUT_SIZE)
-            return Variable(x)
-        self.hidden = gen()
+        h = make_gru_hidden(self.gru_layers, feed.size(0), self.output_size)
+        out, _ = self.rnn(feed, h)
+        # scale output between 0 and 1
+        out = (out + 1) / 2
+        return out
 
 
 class GAN():
 
-    K = 0.01
+    def __init__(self, disc, gen, d_train, g_train):
 
-    def __init__(self, discriminator, generator):
+        self.disc = disc
+        self.gen = gen
 
-        self.disc = discriminator
-        self.gen = generator
+        self.d_train = d_train
+        self.g_train = g_train
 
-        self._data_label = 0
-        self._gen_label = 1
+    def train(self, data, latent, train_disc=True, train_gen=True):
+        def lg(x):
+            return torch.log(x + 1e-300)
 
-        self._d_train = torch.optim.Adam(self.disc.parameters(), 0.01, weight_decay=0.2)
-        self._g_train = torch.optim.Adam(self.gen.parameters(), 0.01, weight_decay=0.2)
+        d_loss, g_loss = None, None  # initialize so at least None is returned
 
-    def train(self, data, batch_size, **kwargs):
-        if "latent" not in kwargs:
-            kwargs["latent"] = self.gen.latent()
+        if train_disc:
+            self.disc.zero_grad()
+            self.gen.zero_grad()
 
-        data = Variable(data)
+            d_data = self.disc(data)
+            d_gen = self.disc(self.gen(latent))
 
-        self.disc.zero_grad()
-        self.gen.zero_grad()
+            d_loss = torch.mean(lg(d_data) + lg(1 - d_gen))
+            d_loss = -1 * d_loss  # change to gradient ascent
+            d_loss.backward()
+            self.d_train.step()
 
-        d_data = self.disc(data)
-        d_gen = self.disc(self.gen(kwargs["latent"]))
+        if train_gen:
+            self.disc.zero_grad()
+            self.gen.zero_grad()
 
-        d_loss = torch.mean(torch.log(d_data + self.K) + torch.log(1 - d_gen + self.K))
-        d_loss = -1 * d_loss  # change to gradient ascent
-        d_loss.backward()
-        self._d_train.step()
-
-        self.disc.zero_grad()
-        self.gen.zero_grad()
-
-        d_gen = self.disc(self.gen(kwargs["latent"]))
-        g_loss = torch.mean(torch.log(1 - d_gen + self.K))
-        g_loss.backward()
-        self._g_train.step()
+            d_gen = self.disc(self.gen(latent))
+            g_loss = torch.mean(lg(1 - d_gen))
+            g_loss.backward()
+            self.g_train.step()
 
         return d_loss, g_loss
