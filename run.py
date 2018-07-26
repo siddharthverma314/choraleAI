@@ -24,10 +24,11 @@ class Summary:
             out += ", "
         print(out[:-2])
 
-    def save_scalars(self):
+    def save_scalars(self, ylim=(-2, 2)):
         for name in self.scalars:
             val = self.scalars[name]
             plt.plot(range(len(val)), val)
+            plt.ylim(*ylim)
         plt.savefig(self.filepath + 'scalars.png')
         plt.close()
 
@@ -53,25 +54,25 @@ class Train:
         self.latent = None
 
     def _init_data(self):
-        self.data = data_loader.InterlaceChorData(2)
+        self.data = data_loader.InterlaceChorData(1)
         self.dl = DataLoader(self.data,
                              batch_size=self.batch_size,
                              sampler=data_loader.InfiniteSampler(self.data))
 
     def _init_models(self):
-        self.d = gan.GRU_Disc(self.data.input_size)
-        self.g = gan.GRU_Gen(10, self.data.input_size)
-        d_train = torch.optim.Adam(self.d.parameters(), 0.01)
-        g_train = torch.optim.Adam(self.d.parameters(), 0.01)
+        self.d = gan.ANN_Disc(self.data.input_size)
+        self.g = gan.ANN_Gen(5, self.data.input_size, 1)
+        d_train = torch.optim.SGD(self.d.parameters(), 0.02, weight_decay=0.1)
+        g_train = torch.optim.SGD(self.g.parameters(), 0.02, weight_decay=0.1)
         self.gan = gan.GAN(self.d, self.g, d_train, g_train)
 
     def train(self, train_steps=10000, save_step=200):
-        const_latent = self.g.latent(1, 2)
+        const_latent = self.g.latent(1)
         di = iter(self.dl)
         d_loss, g_loss = torch.tensor(0), torch.tensor(0)
         for i in range(train_steps):
             data = next(di)
-            latent = self.g.latent(self.batch_size, 2)
+            latent = self.g.latent(self.batch_size)
             d_loss, g_loss = self.gan.train(data, latent)
 
             self.summ.add_scalar('d_loss', d_loss)
@@ -85,7 +86,7 @@ class Train:
 
                 # save one image
                 with torch.no_grad():
-                    self.summ.save_img(self.g.forward(const_latent).squeeze(), "gen_notes")
+                    self.summ.save_img(self.g.forward(const_latent).squeeze(0), "gen_notes")
 
                 self.summ.save_scalars()
 

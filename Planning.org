@@ -5,7 +5,7 @@
 *** Show weights, check for NaN
 *** New script maybe to track gradients
 ** Change GAN structure
-*** Simple ANN Layer instead of LSTM
+*** DONE Simple ANN Layer instead of LSTM
 *** Maybe try CNN as discriminator
 ** Improvements from other papers
 *** Original GAN Paper
@@ -15,3 +15,4 @@ https://arxiv.org/pdf/1706.03850.pdf
 *** Pre-trained model into GAN
 *** Link for GAN resources
 https://github.com/nightrome/really-awesome-gan
+** Script to test random GAN samples
