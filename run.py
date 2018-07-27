@@ -62,8 +62,8 @@ class Train:
     def _init_models(self):
         self.d = gan.ANN_Disc(self.data.input_size)
         self.g = gan.ANN_Gen(5, self.data.input_size, 1)
-        d_train = torch.optim.SGD(self.d.parameters(), 0.02, weight_decay=0.1)
-        g_train = torch.optim.SGD(self.g.parameters(), 0.02, weight_decay=0.1)
+        d_train = torch.optim.SGD(self.d.parameters(), 0.05, weight_decay=0.01)
+        g_train = torch.optim.SGD(self.g.parameters(), 0.05, weight_decay=0.01)
         self.gan = gan.GAN(self.d, self.g, d_train, g_train)
 
     def train(self, train_steps=10000, save_step=200):
