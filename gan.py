@@ -129,7 +129,7 @@ class GAN():
                 d_loss = torch.mean(lg(d_data) + lg(1 - d_gen))
                 d_loss = -1 * d_loss  # change to gradient ascent
                 d_loss.backward()
-                self.d_train.step()
+            self.d_train.step()
 
         if train_gen:
             for _ in range(g_train_steps):
@@ -139,7 +139,7 @@ class GAN():
                 d_gen = self.disc(self.gen(latent))
                 g_loss = torch.mean(lg(1 - d_gen))
                 g_loss.backward()
-                self.g_train.step()
+            self.g_train.step()
 
         return d_loss, g_loss
 

@@ -3,10 +3,11 @@ import torch
 import data_loader
 import gan
 import matplotlib.pyplot as plt
+import argparse
 
 
 class Summary:
-    def __init__(self, filepath):
+    def __init__(self, filepath=None):
         self.scalars = {}
         self.filepath = filepath
         self.count = 0
@@ -25,6 +26,9 @@ class Summary:
         print(out[:-2])
 
     def save_scalars(self, ylim=(-2, 2)):
+        if self.filepath is None:
+            return
+
         for name in self.scalars:
             val = self.scalars[name]
             plt.plot(range(len(val)), val)
@@ -33,12 +37,20 @@ class Summary:
         plt.close()
 
     def save_model(self, model, name):
-        torch.save(model.state_dict(), f"{self.filepath}{name}_{self.count}.model")
+        if self.filepath is None:
+            return
+
+        filename = f"{self.filepath}{name}_{self.count}.model"
+        torch.save(model.state_dict(), filename)
 
     def save_img(self, tensor, name):
+        if self.filepath is None:
+            return
+
         print(tensor.numpy())
         plt.matshow(tensor.numpy())
-        plt.savefig(f"{self.filepath}{name}_{self.count}.png")
+        filename = f"{self.filepath}{name}_{self.count}.png"
+        plt.savefig(filename)
         plt.close()
 
     def step(self):
@@ -48,32 +60,42 @@ class Summary:
 class Train:
     def __init__(self, batch_size):
         self.batch_size = batch_size
-        self._init_data()
-        self._init_models()
-        self.summ = Summary('./test/')
         self.latent = None
 
-    def _init_data(self):
-        self.data = data_loader.InterlaceChorData(1)
+    def init_data(self, length=1):
+        self.data = data_loader.InterlaceChorData(length)
         self.dl = DataLoader(self.data,
                              batch_size=self.batch_size,
                              sampler=data_loader.InfiniteSampler(self.data))
 
-    def _init_models(self):
+    def init_saving(self, directory):
+        self.summ = Summary(directory)
+
+    def init_models(self, prev_disc=None, prev_gen=None,
+                    alpha=0.1, weight_decay=0.001):
         self.d = gan.ANN_Disc(self.data.input_size)
         self.g = gan.ANN_Gen(5, self.data.input_size, 1)
-        d_train = torch.optim.SGD(self.d.parameters(), 0.05, weight_decay=0.01)
-        g_train = torch.optim.SGD(self.g.parameters(), 0.05, weight_decay=0.01)
+
+        if prev_disc is not None:
+            self.d.load_state_dict(torch.load(prev_disc))
+        if prev_gen is not None:
+            self.g.load_state_dict(torch.load(prev_gen))
+
+        d_train = torch.optim.SGD(self.d.parameters(), alpha,
+                                  weight_decay=weight_decay)
+        g_train = torch.optim.SGD(self.g.parameters(), alpha,
+                                  weight_decay=weight_decay)
         self.gan = gan.GAN(self.d, self.g, d_train, g_train)
 
-    def train(self, train_steps=10000, save_step=200):
+    def train(self, train_steps=10000, save_step=200,
+              d_train_steps=5, g_train_steps=5):
         const_latent = self.g.latent(1)
         di = iter(self.dl)
         d_loss, g_loss = torch.tensor(0), torch.tensor(0)
         for i in range(train_steps):
             data = next(di)
             latent = self.g.latent(self.batch_size)
-            d_loss, g_loss = self.gan.train(data, latent)
+            d_loss, g_loss = self.gan.train(data, latent, d_train_steps, g_train_steps)
 
             self.summ.add_scalar('d_loss', d_loss)
             self.summ.add_scalar('g_loss', g_loss)
@@ -86,7 +108,8 @@ class Train:
 
                 # save one image
                 with torch.no_grad():
-                    self.summ.save_img(self.g.forward(const_latent).squeeze(0), "gen_notes")
+                    out = self.g.forward(const_latent).squeeze(0)
+                    self.summ.save_img(out, "gen_notes")
 
                 self.summ.save_scalars()
 
@@ -94,5 +117,19 @@ class Train:
 
 
 if __name__ == "__main__":
-    t = Train(10)
-    t.train(100001, 1000)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--batch-size', default=10, type=int)
+    parser.add_argument('--steps', default=100000, type=int)
+    parser.add_argument('--save-step', default=1000, type=int)
+    parser.add_argument('--prev-disc', type=str)
+    parser.add_argument('--prev-gen', type=str)
+    parser.add_argument('--save-filepath', type=str)
+    parser.add_argument('--alpha', default=0.1, type=float)
+    parser.add_argument('--weight-decay', default=0.001, type=float)
+    args = parser.parse_args()
+
+    t = Train(args.batch_size)
+    t.init_data()
+    t.init_saving(args.save_filepath)
+    t.init_models(args.prev_disc, args.prev_gen, args.alpha, args.weight_decay)
+    t.train(args.steps + 1, args.save_step)
