@@ -5,7 +5,6 @@ import gan
 import matplotlib.pyplot as plt
 import argparse
 
-
 class Summary:
     def __init__(self, filepath=None):
         self.scalars = {}
@@ -128,7 +127,11 @@ if __name__ == "__main__":
     parser.add_argument('--save-filepath', type=str)
     parser.add_argument('--alpha', default=0.1, type=float)
     parser.add_argument('--weight-decay', default=0.001, type=float)
+    parser.add_argument('--disable-cuda', type=bool)
     args = parser.parse_args()
+
+    if not args.disable_cuda and torch.cuda.is_available():
+        torch.set_default_tensor_type(torch.cuda.FloatTensor)
 
     t = Train(args.batch_size)
     t.init_data()
