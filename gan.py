@@ -12,7 +12,7 @@ def make_gru_hidden(gru_layers, batch_size, hidden_size):
 
 class GRU_Disc(nn.Module):
 
-    def __init__(self, input_size, hidden_size=10, gru_layers=1):
+    def __init__(self, input_size, hidden_size=10, gru_layers=2):
         super(GRU_Disc, self).__init__()
 
         self.gru_layers = gru_layers
@@ -34,7 +34,7 @@ class GRU_Disc(nn.Module):
 
 class GRU_Gen(nn.Module):
 
-    def __init__(self, input_size, output_size, gru_layers=1):
+    def __init__(self, input_size, output_size, gru_layers=2):
         super(GRU_Gen, self).__init__()
 
         self.input_size = input_size

@@ -58,11 +58,13 @@ class Summary:
 
 
 class Train:
-    def __init__(self, batch_size):
+    def __init__(self, batch_size, hidden_size=30):
         self.batch_size = batch_size
+        self.hidden_size = hidden_size
         self.latent = None
 
-    def init_data(self, length=1):
+    def init_data(self, length=10):
+        self.output_length = length
         self.data = data_loader.InterlaceChorData(length)
         self.dl = DataLoader(self.data,
                              batch_size=self.batch_size,
@@ -73,8 +75,8 @@ class Train:
 
     def init_models(self, prev_disc=None, prev_gen=None,
                     alpha=0.1, weight_decay=0.001):
-        self.d = gan.ANN_Disc(self.data.input_size)
-        self.g = gan.ANN_Gen(5, self.data.input_size, 1)
+        self.d = gan.GRU_Disc(self.data.input_size)
+        self.g = gan.GRU_Gen(self.hidden_size, self.data.input_size)
 
         if prev_disc is not None:
             self.d.load_state_dict(torch.load(prev_disc))
@@ -89,12 +91,12 @@ class Train:
 
     def train(self, train_steps=10000, save_step=200,
               d_train_steps=5, g_train_steps=5):
-        const_latent = self.g.latent(1)
+        const_latent = self.g.latent(1, self.output_length)
         di = iter(self.dl)
         d_loss, g_loss = torch.tensor(0), torch.tensor(0)
         for i in range(train_steps):
             data = next(di)
-            latent = self.g.latent(self.batch_size)
+            latent = self.g.latent(self.batch_size, self.output_length)
             d_loss, g_loss = self.gan.train(data, latent, d_train_steps, g_train_steps)
 
             self.summ.add_scalar('d_loss', d_loss)
