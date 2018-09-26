@@ -1,0 +1,42 @@
+#+TITLE: ChoraleAI - An attempt to generate Chorales using Machine Learning
+* Brief Description
+This project was an attempt at training a creative neural network to produce
+novel four-part chorale music in the style of Bach. Chorales are a type of vocal
+music typically sung at church and written for four voices. Chorales create
+complex harmonic progressions out of simple melodies. As they were meant to be
+sung in church, they contain melodies that are simple to sing; slow and
+stationary. In fact, chorales are often taught in universities as the
+fundamentals of music harmony. This makes them a suitable entry point for
+generative music.
+
+* Why Chorales?
+Bach is a German composer from the early 17th century. Although he is well-known
+in the present, he was relatively obscure in his time and mostly wrote his
+pieces for his students or for church. In his hayday, he wrote a chorale a day
+for an entire year, composing around 400 works. These works are homogenous yet
+encompass much of the chord progressions found in tonal music. These reasons
+make it a great choice as a dataset for algorithmic music composition.
+
+* Previous Methods
+Previous methods that have worked reliably well in the past involve simple
+probablistic models. For example, the chorales were taken and broken into small
+snippets, then a markov model was used to calculate the probability of any
+snippet coming after another. While these methods yield good results, the
+generated music is not coherent in the long run and requires advanced methods to
+fix. This is exactly the problem that machine learning methods can solve.
+
+* What is a GAN?
+
+* First Failure
+** Pictures
+
+* Second Failure
+** Pictures
+
+* Success
+** Pictures
+
+* ... Then Failure Again
+** Pictures
+
+* Conclusion
